@@ -3,10 +3,12 @@ require('dotenv').config()
 
 const express = require('express')
 const bodyParser = require('body-parser')
+
 const mongoose = require('mongoose')
 
-const saltRounds = 10
-const bcrypt = require('bcrypt')
+const session = require('express-session')
+const passport = require('passport')
+const passportLocalMongoose = require('passport-local-mongoose')
 
 const app = express()
 
@@ -14,10 +16,19 @@ app.set('view engine', 'ejs')
 
 app.use(express.static('public'))
 app.use(bodyParser.urlencoded({ extended: true }))
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: false
+}))
+
+app.use(passport.initialize())
+app.use(passport.session())
 
 mongoose.connect('mongodb://localhost:27017/userdb', {
     useNewUrlParser: true,
-    useUnifiedTopology: true
+    useUnifiedTopology: true,
+    useCreateIndex: true
 })
 
 const userSchema = new mongoose.Schema ({
@@ -25,53 +36,66 @@ const userSchema = new mongoose.Schema ({
     password: String
 })
 
+userSchema.plugin(passportLocalMongoose)
+
 const User = new mongoose.model('User', userSchema)
 
+passport.use(User.createStrategy())
+passport.serializeUser(User.serializeUser())
+passport.deserializeUser(User.deserializeUser())
 
 app.route('/')
     .get((req, res) => res.render('home'))
 
+
+app.get('/logout', (req, res) => {
+    req.logout()
+    return res.redirect('/')
+})
+
 app.route('/login')
     .get((req, res) => res.render('login'))
     .post((req, res) => {
-        const username = req.body.username
-        const password = req.body.password
+        let username = req.body.username
+        let password = req.body.password
 
-        User.findOne(
-            {email: username},
-            (err, user) => {
-                if (err) console.log(err)
-                else {
-                    if (user) {
-                        bcrypt.compare(password, user.password, (err, result) => {
-                            if (result === true) {
-                                return res.render('secrets')
-                            }
-                            
-                            return res.redirect('/login')
-                        })                        
-                    } else {
-                        return res.redirect('/login')
-                    }
-                }
+        const user = new User({username, password})
+
+        req.login(user, (err) => {
+            if (err) console.log(err)
+            else {
+                passport.authenticate('local')(req, res, () => {
+                    return res.redirect('/secrets')
+                })
             }
-        )
+        })
     })
 
 app.route('/register')
     .get((req, res) => res.render('register'))
     .post((req, res) => {
-        bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-            const newUser = new User({
-                email: req.body.username,
-                password: hash
-            })
-    
-            newUser.save((err) => {
-                if (err) console.log(err);
-                else return res.render('secrets')
-            })
+        let username = req.body.username
+        let password = req.body.password
+
+        User.register({username}, password, (err, user) => {
+            if (err) {
+                console.log(err)
+                return res.redirect('/register')
+            } else {
+                passport.authenticate('local')(req, res, () => {
+                    return res.redirect('/secrets')
+                })
+            }
         })
+    })
+
+app.route('/secrets')
+    .get((req, res) => {
+        if (req.isAuthenticated()) {
+            return res.render('secrets')
+        } else {
+            return res.redirect('/login')
+        }
     })
 
 app.listen(3000, () => console.log('Server started on port 3000.'))
