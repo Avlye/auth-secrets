@@ -1,3 +1,3 @@
 # Authentication-Secrets
 
-Project made for studying basic encryption in Node.js
+Project made for studying basic auth in Node.js
