@@ -33,7 +33,8 @@ mongoose.connect('mongodb://localhost:27017/userdb', {
 
 const userSchema = new mongoose.Schema ({
     email: String,
-    password: String
+    password: String,
+    secret: String
 })
 
 userSchema.plugin(passportLocalMongoose)
@@ -91,11 +92,39 @@ app.route('/register')
 
 app.route('/secrets')
     .get((req, res) => {
+        User.find({'secret': {$ne:null}}, (err, users) => {
+            if (err) console.log(err)
+            else {
+                if (users) {
+                    return res.render('secrets', {usersWithSecrets: users})
+                }
+            }
+        })
+    })
+
+app.route('/submit')
+    .get((req, res) => {
         if (req.isAuthenticated()) {
-            return res.render('secrets')
+            return res.render('submit')
         } else {
             return res.redirect('/login')
         }
+    })
+    .post((req, res) => {
+        let secret = req.body.secret
+        let user_id = req.user.id
+
+        User.findById(user_id, (err, user) => {
+            if (err) console.log(err)
+            else {
+                if (user) {
+                    user.secret = secret
+                    user.save(() => {
+                        res.redirect('/secrets')
+                    })
+                }
+            }
+        })
     })
 
 app.listen(3000, () => console.log('Server started on port 3000.'))
