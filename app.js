@@ -42,8 +42,15 @@ userSchema.plugin(passportLocalMongoose)
 const User = new mongoose.model('User', userSchema)
 
 passport.use(User.createStrategy())
-passport.serializeUser(User.serializeUser())
-passport.deserializeUser(User.deserializeUser())
+passport.serializeUser(function (user, done) {
+    done(null, user.id);
+});
+
+passport.deserializeUser(function (id, done) {
+    User.findById(id, function (err, user) {
+        done(err, user);
+    });
+});
 
 app.route('/')
     .get((req, res) => res.render('home'))
@@ -81,8 +88,8 @@ app.route('/register')
         User.register({username}, password, (err, user) => {
             if (err) {
                 console.log(err)
-                return res.redirect('/register')
-            } else {
+                return res.render('register', {err})
+            } else if (user) {
                 passport.authenticate('local')(req, res, () => {
                     return res.redirect('/secrets')
                 })
@@ -94,10 +101,8 @@ app.route('/secrets')
     .get((req, res) => {
         User.find({'secret': {$ne:null}}, (err, users) => {
             if (err) console.log(err)
-            else {
-                if (users) {
-                    return res.render('secrets', {usersWithSecrets: users})
-                }
+            else if (users) {
+                return res.render('secrets', {usersWithSecrets: users})
             }
         })
     })

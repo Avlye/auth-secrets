@@ -20,6 +20,10 @@
             <button type="submit" class="btn btn-dark">Register</button>
           </form>
 
+          <% if (typeof err !== 'undefined') { %>
+          <p><br><%= err.message %></p>
+          <% } %>
+
         </div>
       </div>
     </div>
